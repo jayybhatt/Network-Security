@@ -8,7 +8,10 @@
 #include <openssl/err.h>
 #include <openssl/conf.h>
 #include <openssl/evp.h>
-#include <fcntl.h>
+#include <netdb.h>
+#include "client.h"
+#include "server.h"
+
 #define SIZE 1024
 
 void print_app_usage()
@@ -84,7 +87,7 @@ int main(int argc, char* argv[])
 				kflag = 1;
 				if( optarg[0] == '-') 
 				{
-					printf("File not specified\n");
+					fprintf(stderr ,"File not specified\n");
 					print_app_usage();
 					exit(1);
 				}
@@ -141,181 +144,30 @@ int main(int argc, char* argv[])
 
 	dest_ip = argv[optind++];
 	dest_port = atoi(argv[optind]);
-
+	
 	printf("dest_ip - %s\n", dest_ip);
 	printf("dest_port - %d\n", dest_port);
 
 
-
+/*
 /////////////////
-	int sock2_fd;
-    struct sockaddr_in sock2_serv_addr;
-    int sock2_PORT = dest_port;
-    int opt = 1;
-
-    // Connecting to the actual server
-    if ((sock2_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        printf("\n Socket creation error \n");
-        return -1;
-    }
-  
-    memset(&sock2_serv_addr, '0', sizeof(sock2_serv_addr));
-  
-    sock2_serv_addr.sin_family = AF_INET;
-    sock2_serv_addr.sin_port = htons(sock2_PORT);
-
-    if(inet_pton(AF_INET, dest_ip, &sock2_serv_addr.sin_addr)<=0) 
-    {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
-    }
-  
-    if (connect(sock2_fd, (struct sockaddr *)&sock2_serv_addr, sizeof(sock2_serv_addr)) < 0)
-    {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
-
-    puts("Connected to server");
-
-	fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
-
-	int flags = fcntl(sock2_fd, F_GETFL);
-	if (flags == -1) {
-		printf("read sockfd flag error!\n");
-		close(sock2_fd);
-	}
-	
-	fcntl(sock2_fd, F_SETFL, flags | O_NONBLOCK);
 
 
-    if (!lflag)
+*** CALL THE CLIENT FUNCTION HERE
+*/
+	if (!lflag)
 	{
-
-		while(1)
-	    {
-	        bzero(plaintext , SIZE);
-	        // gets(plaintext); // change to read from STDIN_FILENO
-	        while ((valread = read(STDIN_FILENO, plaintext, SIZE)) > 0)
-	        {
-		        printf("Client typed - %s\n",plaintext );
-		        write(sock2_fd , plaintext , strlen(plaintext));
-		        printf("Sent to pbproxy-s - %s\n",plaintext );
-	        	
-	        }
-	        
-	        while((valread = read(sock2_fd, plaintext, SIZE)) > 0)
-		   	{
-
-		        // if (valread > 0)
-		        // {
-			        // printf("Received from Server - %s\n", plaintext);
-			    write(STDOUT_FILENO, plaintext, SIZE);    
-			        // send(new_socket , plaintext , strlen(plaintext) , 0 );
-		        	// printf("Sent to Client - %s\n", plaintext);
-		        	
-		        // }
-		   	}     
-	    }
-	}    
+		client(dest_ip, dest_port, key);
+		exit(1);
+	}
+/*	
 // /////////////////
-
+*/
     if (lflag)
     {
-
-		int sock1_fd, new_socket;//, valread;
-	    struct sockaddr_in sock1_serv_addr;
-	    int addrlen = sizeof(sock1_serv_addr);
-		
-	    int sock1_PORT = listen_on_port;
-
-	    // Listening on sock1_PORT for connections
-	    // Creating socket file descriptor
-	    if ((sock1_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
-	    {
-	        perror("socket failed");
-	        exit(EXIT_FAILURE);
-	    }
-	    
-
-	    // Forcefully attaching socket to the port 8080
-	    if (setsockopt(sock1_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-	                                                  &opt, sizeof(opt)))
-	    {
-	        perror("setsockopt");
-	        exit(EXIT_FAILURE);
-	    }
-
-	    puts("Socket created for self");
-	    sock1_serv_addr.sin_family = AF_INET;
-	    sock1_serv_addr.sin_addr.s_addr = INADDR_ANY;
-	    sock1_serv_addr.sin_port = htons( sock1_PORT );
-	      
-	    // Forcefully attaching socket to the port 8080
-	    if (bind(sock1_fd, (struct sockaddr *)&sock1_serv_addr, sizeof(sock1_serv_addr))<0)
-	    {
-	        perror("bind failed");
-	        exit(EXIT_FAILURE);
-	    }
-	    printf("Binding to port %d successful\n", sock1_PORT);
-
-	    if (listen(sock1_fd, 3) < 0)
-	    {
-	        perror("listen");
-	        exit(EXIT_FAILURE);
-	    }
-	    puts("waiting for connections");
-	    
-	    if ((new_socket = accept(sock1_fd, (struct sockaddr *)&sock1_serv_addr, 
-	                       (socklen_t*)&addrlen))<0)
-	    {
-	        perror("accept");
-	        exit(EXIT_FAILURE);
-	    }
-
-	    int flags = fcntl(sock1_fd, F_GETFL);
-    	if (flags == -1) {
-			printf("read sock 1 flag error!\n");
-			printf("Closing connections and exit thread!\n");
-			// close(sock);
-			close(sock1_fd);
-		}
-
-		fcntl(sock1_fd, F_SETFL, flags | O_NONBLOCK);
-
-	    while(1)
-	    {
-	        bzero(plaintext , SIZE);
-	        while ((valread = read( new_socket , plaintext, SIZE)) > 0)
-	        {
-
-		    	// if (valread > 0)
-		     //    {
-			        printf("Received from Client - %s\n", plaintext);
-			        write(sock2_fd , plaintext , strlen(plaintext));
-		        	printf("Sent to Server- %s\n", plaintext);
-		        	
-		        // }
-	        }
-
-	        bzero(plaintext , SIZE);
-	        while((valread = read( sock2_fd , plaintext, SIZE)) > 0)
-	        {
-
-		        // if (valread > 0)
-		        // {
-			        printf("Received from Server - %s\n", plaintext);
-			        write(new_socket , plaintext , strlen(plaintext));
-		        	printf("Sent to Client - %s\n", plaintext);
-		        	
-		        // }
-	        }
-
-		        
-	    }
-	
-    }
+    	server(listen_on_port, dest_ip, dest_port, key);
+		exit(1);
+	}
 
     return 0;
 	/* Set up the key and iv.
