@@ -7,19 +7,91 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <netdb.h>
+#include <pthread.h>
 
 #define SIZE 1440
+
+struct relay_information {
+    int from;
+    int to;
+    // char *iv;
+    // char *keyFileName;
+    // struct ctr_state *enc_dec_state;
+};
+
+
+void relay(int src, int dst)
+{
+
+    int num_bytes_read, num_bytes_write = 0;
+    char buffer[SIZE] = {0};
+
+    // bzero(buffer, SIZE);
+
+    while (1)
+    {
+
+        num_bytes_read = read(src, buffer, SIZE);
+        if (num_bytes_read < 0)
+        {
+            fprintf(stderr, "\n Problem Reading\n");
+            exit(EXIT_FAILURE);
+        }
+
+        else if (num_bytes_read == 0)
+        {
+            fprintf(stderr, "\n Connection Closed\n");
+            exit(EXIT_FAILURE);
+        }
+
+
+        else
+        {
+            // fprintf(stderr, "Client typed - %s\n",buffer );
+            int num_bytes_write_total = 0;
+
+            while (num_bytes_write_total < num_bytes_read)
+            {
+                num_bytes_write = write(dst , buffer+num_bytes_write_total, num_bytes_read - num_bytes_write_total);
+                if (num_bytes_write <= 0)
+                {
+                    fprintf(stderr, "\nConnection Closed\n");
+                    close(dst);
+
+                    return;
+                }
+                // fprintf(stderr, "Sent to pbproxy-s - %s\n",buffer );
+                num_bytes_write_total += num_bytes_write;
+            }             
+                
+        }
+   
+    }
+}
+
+void* serverToSTDOUT(void* args)
+{
+
+    struct relay_information *relay_data;
+    relay_data = (struct relay_information *) args;
+    
+    int from = relay_data->from;
+    int to = relay_data->to;
+    // char *iv_server = relay_data->iv;
+    // char *keyFileName = relay_data->keyFileName;
+    // struct ctr_state *dec_state = relay_data->enc_dec_state;
+    relay(from, to);//, DECRYPT, iv_server, keyFileName, dec_state);
+}
 
 int client(const char* server_ip, int server_port, const char* keyFile)
 {
     
-    int sock = 0, num_bytes_read, num_bytes_write = 0;
+    int sock = 0;
     struct sockaddr_in serv_addr;
     struct hostent * host = NULL;
 
     // const char* server_ip = NULL;
     // int server_port = server_port;
-    char buffer[SIZE] = {0};
 
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -57,146 +129,42 @@ int client(const char* server_ip, int server_port, const char* keyFile)
         exit(EXIT_FAILURE);
     }
 
-    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
+    // fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
 
-    int flags = fcntl(sock, F_GETFL);
-    if (flags == -1) {
-        printf("read sock flag error!\n");
-        close(sock);
-    }
-    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+    // int flags = fcntl(sock, F_GETFL);
+    // if (flags == -1) {
+    //     printf("read sock flag error!\n");
+    //     close(sock);
+    // }
+    // fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
     fprintf(stderr, "\n $$ \n");
 
     fprintf(stderr, "\n Successfully connected to server at - %s and process - %d\n", server_ip, server_port);
 
-    bzero(buffer, SIZE);
-    while (1)
-    {
-
-        num_bytes_read = read(STDIN_FILENO, buffer, SIZE);
-        if (num_bytes_read < 0)
-        {
-            fprintf(stderr, "\n Problem Reading\n");
-            exit(EXIT_FAILURE);
-        }
-
-        else if (num_bytes_read == 0)
-        {
-            fprintf(stderr, "\n Connection Closed\n");
-            exit(EXIT_FAILURE);
-        }
 
 
-        else// if (num_bytes_read > 0)
-        {
-            fprintf(stdout, "Client typed - %s\n",buffer );
-            int num_bytes_write_total = 0;
+    struct relay_information *relay_data = (struct relay_information *) 
+                                                malloc(sizeof(struct relay_information));
+    relay_data->from = sock;
+    relay_data->to = 1;
+    // relay_data->iv = iv_server;
+    // relay_data->keyFileName = keyFileName;
+    // relay_data->enc_dec_state = &dec_state_server;
 
-            while (num_bytes_write_total < num_bytes_read)
-            {
-                
-                num_bytes_write = write(sock , buffer+num_bytes_write_total, num_bytes_read - num_bytes_write_total);
-                if (num_bytes_write <= 0)
-                {
-                    fprintf(stderr, "\nConnection Closed\n");
-                    close(sock);
-
-                    return 0;
-                }
-                fprintf(stdout, "Sent to pbproxy-s - %s\n",buffer );
-                num_bytes_write_total += num_bytes_write;
-            }             
-                
-        }
-
-        // bzero(buffer, SIZE);
-            
-        while((num_bytes_read = read(sock, buffer, SIZE)) > 0)
-        {
-
-            fprintf(stdout, "Received from Server - %s\n", buffer);
-            write(STDOUT_FILENO, buffer, SIZE);    
-        }     
-     
-        // num_bytes_read = read(sock, buffer, SIZE);
-
-        // if (num_bytes_read > 0)
-            // printf("%s\n",buffer );
-        
+    pthread_t serverToSTDOUT_thread;
+    if( pthread_create( & serverToSTDOUT_thread , NULL , 
+        serverToSTDOUT , (void*) relay_data) < 0) {
+                printf("client:: Error::  creating serverToSTDOUT_thread failed.\n");
+                fflush(stdout);
+                close(sock);
+                free(relay_data);
+                return 0;
     }
+
+    // CALL RELAY
+    relay(0, sock);
+
+
     return 0;
 }
-
-/*
-int sock2_fd;
-    struct sockaddr_in sock2_serv_addr;
-    int sock2_PORT = dest_port;
-    int opt = 1;
-
-    // Connecting to the actual server
-    if ((sock2_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        printf("\n Socket creation error \n");
-        return -1;
-    }
-  
-    memset(&sock2_serv_addr, '0', sizeof(sock2_serv_addr));
-  
-    sock2_serv_addr.sin_family = AF_INET;
-    sock2_serv_addr.sin_port = htons(sock2_PORT);
-
-    if(inet_pton(AF_INET, dest_ip, &sock2_serv_addr.sin_addr)<=0) 
-    {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
-    }
-  
-    if (connect(sock2_fd, (struct sockaddr *)&sock2_serv_addr, sizeof(sock2_serv_addr)) < 0)
-    {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
-
-    puts("Connected to server");
-
-    fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
-
-    int flags = fcntl(sock2_fd, F_GETFL);
-    if (flags == -1) {
-        printf("read sockfd flag error!\n");
-        close(sock2_fd);
-    }
-    
-    fcntl(sock2_fd, F_SETFL, flags | O_NONBLOCK);
-
-
-    if (!lflag)
-    {
-
-        while(1)
-        {
-            bzero(plaintext , SIZE);
-            // gets(plaintext); // change to read from STDIN_FILENO
-            while ((valread = read(STDIN_FILENO, plaintext, SIZE)) > 0)
-            {
-                printf("Client typed - %s\n",plaintext );
-                write(sock2_fd , plaintext , strlen(plaintext));
-                printf("Sent to pbproxy-s - %s\n",plaintext );
-                
-            }
-            
-            while((valread = read(sock2_fd, plaintext, SIZE)) > 0)
-            {
-
-                // if (valread > 0)
-                // {
-                    // printf("Received from Server - %s\n", plaintext);
-                write(STDOUT_FILENO, plaintext, SIZE);    
-                    // send(new_socket , plaintext , strlen(plaintext) , 0 );
-                    // printf("Sent to Client - %s\n", plaintext);
-                    
-                // }
-            }     
-        }
-    }    */

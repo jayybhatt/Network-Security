@@ -19,6 +19,21 @@ typedef struct connection_info{
     const char *keyFile;
 } connection_info;
 
+void *clientToSshd(void *args) {
+    struct relay_information *relay_data;
+    relay_data = (struct relay_information *) args;
+    
+    int from = relay_data->from;
+    int to = relay_data->to;
+    // char *iv_client = relay_data->iv;
+    // char *keyFileName = relay_data->keyFileName;
+    // struct ctr_state *dec_state = relay_data->enc_dec_state;
+
+    relay(from, to);//, DECRYPT, iv_client, keyFileName, dec_state);
+}
+
+
+
 void *process_connection(void *args);
 
 int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* keyFile)
@@ -123,12 +138,6 @@ void *process_connection(void *args)
     int num_bytes_read = 0;
 
     char sshdIPAddress[16] = ""; // IPv4 can be at most 255.255.255.255 and last index for '\0'
-    // if (hostname_to_ip(sshdURL , sshdIPAddress) == 1) {
-    //     printf("connection_handler:: Error: Could not convert the sshd URL to the sshd IP address");
-    //     close(pbproxy_socket);
-    //     free(threadArg);
-    //     return NULL;
-    // }
 
     // MAKE A SOCKET AND CONNECT TO SSHD
     int sshdSocket = 0;
@@ -171,71 +180,47 @@ void *process_connection(void *args)
         return NULL;
     }
 
-    int flags = fcntl(client_socket, F_GETFL);
-    if (flags == -1) {
-        printf("read sock 1 flag error!\n");
-        printf("Closing connections and exit thread!\n");
-        close(client_socket);
-        close(sshdSocket);
-        free(args);
-        pthread_exit(0);
-    }
-    fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+    struct relay_information *relay_data = (struct relay_information *) malloc(sizeof(struct relay_information));
     
-    flags = fcntl(sshdSocket, F_GETFL);
-    if (flags == -1) {
-        printf("read ssh_fd flag error!\n");
-        close(client_socket);
-        close(sshdSocket);
-        free(args);
-        pthread_exit(0);
-    }
-    fcntl(sshdSocket, F_SETFL, flags | O_NONBLOCK);
+    relay_data->from = client_socket;
+    relay_data->to = sshdSocket;
+    // relay_data->iv = iv_client;
+    // relay_data->keyFileName = keyFileName;
+    // relay_data->enc_dec_state = &dec_state_client;
     bzero(buffer , SIZE);
 
-    while(1)
-    {
-    
-        num_bytes_read = read(client_socket, buffer, SIZE);
-        if (num_bytes_read < 0)
-        {
-            fprintf(stderr, "\n Problem Reading\n");
-            exit(EXIT_FAILURE);
-        }
-
-        else if (num_bytes_read == 0)
-        {
-            fprintf(stderr, "\n Connection Closed\n");
-            exit(EXIT_FAILURE);
-        }
-
-        while () > 0)
-        {
-
-            // if (num_bytes_read > 0)
-         //    {
-                printf("Received from Client - %s\n", buffer);
-                write(sshdSocket , buffer , strlen(buffer));
-                printf("Sent to Server- %s\n", buffer);
-                
-            // }
-        }
-
-        // bzero(buffer , SIZE);
-        while((num_bytes_read = read( sshdSocket, buffer, SIZE)) > 0)
-        {
-
-            // if (num_bytes_read > 0)
-            // {
-                printf("Received from Server - %s\n", buffer);
-                write( client_socket, buffer , strlen(buffer));
-                printf("Sent to Client - %s\n", buffer);
-                
-            // }
-        }
-
-            
+    // RELAYING ALL THE DATA FROM CLIENT TO SSHD + DECRYPTION
+    pthread_t clientToSshd_thread;
+    if( pthread_create( & clientToSshd_thread , NULL , 
+        clientToSshd , (void*) relay_data) < 0) {
+                printf("server:: Error::  creating clientToSshd_thread failed.\n");
+                fflush(stdout);
+                close(client_socket);
+                free(relay_data);
+                return 0;
     }
+
+    relay(sshdSocket,  client_socket);//, ENCRYPT, iv_server, keyFileName, &enc_state_server);
+    // int flags = fcntl(client_socket, F_GETFL);
+    // if (flags == -1) {
+    //     printf("read sock 1 flag error!\n");
+    //     printf("Closing connections and exit thread!\n");
+    //     close(client_socket);
+    //     close(sshdSocket);
+    //     free(args);
+    //     pthread_exit(0);
+    // }
+    // fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+    
+    // flags = fcntl(sshdSocket, F_GETFL);
+    // if (flags == -1) {
+    //     printf("read ssh_fd flag error!\n");
+    //     close(client_socket);
+    //     close(sshdSocket);
+    //     free(args);
+    //     pthread_exit(0);
+    // }
+    // fcntl(sshdSocket, F_SETFL, flags | O_NONBLOCK);
 
     close(client_socket);
     free(curr_conn);
