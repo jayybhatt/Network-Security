@@ -10,21 +10,64 @@
 #include <pthread.h>
 
 #define SIZE 1440
+#define OUTPUT_SIZE 1456
 
 struct relay_information {
     int from;
     int to;
-    // char *iv;
-    // char *keyFileName;
-    // struct ctr_state *enc_dec_state;
+    char *iv;
+    const char *key_file_name;
+    struct ctr_state *enc_dec_state;
 };
 
+/*
+ * Reference:
+ * http://stackoverflow.com/questions/174531/easiest-way-to-get-files-contents-in-c
+ */
+unsigned char* read_file(const char* filename)
+{
+    unsigned char *buffer = NULL;
+    long length;
+    FILE *f = fopen (filename, "rb");
 
-void relay(int src, int dst)
+    if (f) {
+        fseek (f, 0, SEEK_END);
+        length = ftell (f);
+        fseek (f, 0, SEEK_SET);
+        buffer = malloc (length);
+        if (buffer)
+        {
+            fread (buffer, 1, length, f);
+        }
+        fclose (f);
+    }
+    return buffer;
+}
+
+void relay(int src, int dst, int encrypt_decrpyt, const char* key_file_name, char* iv, struct ctr_state* crypto_state)
 {
 
+    int crypt_size = 0;
     int num_bytes_read, num_bytes_write = 0;
     char buffer[SIZE] = {0};
+    char crypto_text[OUTPUT_SIZE] = {0};
+
+    // FILE * key_file = fopen(key_file_name, "rb");
+    // // read_file(key_file_name);
+    
+    // if(key_file == NULL) {
+    //     fprintf(stderr, "Error opening the key_file.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+    
+    unsigned char enc_key[16];
+    strcpy(enc_key,read_file(key_file_name));
+    // if(fread(enc_key, 1, AES_BLOCK_SIZE, key_file) != 16) {
+    //     fprintf(stderr, "Error reading the key.\n");
+    //     exit(EXIT_FAILURE);
+    // }
+    // fclose(key_file);
+
 
     // bzero(buffer, SIZE);
 
@@ -49,10 +92,31 @@ void relay(int src, int dst)
         {
             // fprintf(stderr, "Client typed - %s\n",buffer );
             int num_bytes_write_total = 0;
-
-            while (num_bytes_write_total < num_bytes_read)
+            bzero(crypto_text, OUTPUT_SIZE);
+            if (encrypt_decrpyt)
             {
-                num_bytes_write = write(dst , buffer+num_bytes_write_total, num_bytes_read - num_bytes_write_total);
+                // crypt_size = encrypt(key_file, crypto_state, buffer, num_bytes_read, crypto_text);
+                crypt_size = encrypt(enc_key, buffer, crypto_state, num_bytes_read, crypto_text);
+            
+            }
+
+            else
+            {
+                crypt_size = decrypt(enc_key, buffer, crypto_state, num_bytes_read,crypto_text);
+            }
+
+
+            if (num_bytes_read < 0) {
+                fprintf(stderr, "\nProblem with processing the input buffer.\n");
+                close(src);
+                close(dst);
+                return;
+            }
+
+            num_bytes_write_total = 0;
+            while (num_bytes_write_total < crypt_size)
+            {
+                num_bytes_write = write(dst, crypto_text+num_bytes_write_total, crypt_size - num_bytes_write_total);
                 if (num_bytes_write <= 0)
                 {
                     fprintf(stderr, "\nConnection Closed\n");
@@ -77,18 +141,20 @@ void* serverToSTDOUT(void* args)
     
     int from = relay_data->from;
     int to = relay_data->to;
-    // char *iv_server = relay_data->iv;
-    // char *keyFileName = relay_data->keyFileName;
-    // struct ctr_state *dec_state = relay_data->enc_dec_state;
-    relay(from, to);//, DECRYPT, iv_server, keyFileName, dec_state);
+    char *iv = relay_data->iv;
+    const char *key_file_name = relay_data->key_file_name;
+    struct ctr_state *dec_state = relay_data->enc_dec_state;
+    relay(from, to, DECRYPT, key_file_name, iv, dec_state);
 }
 
-int client(const char* server_ip, int server_port, const char* keyFile)
+int client(const char* server_ip, int server_port, const char* key_file_name)
 {
     
     int sock = 0;
     struct sockaddr_in serv_addr;
     struct hostent * host = NULL;
+
+    char IV[AES_BLOCK_SIZE] = {};
 
     // const char* server_ip = NULL;
     // int server_port = server_port;
@@ -111,17 +177,6 @@ int client(const char* server_ip, int server_port, const char* keyFile)
     serv_addr.sin_addr.s_addr = ((struct in_addr*) (host->h_addr))->s_addr;
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port);
-
-
-
-    // CAN ADD THE FUNCTIONALITY TO SUPPORT HOSTNAME
-      
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    // if(inet_pton(AF_INET, server_ip, &serv_addr.sin_addr)<=0) 
-    // {
-    //     fprintf(stderr, "\nInvalid address/ Address not supported \n");
-    //     exit(EXIT_FAILURE);
-    // }
   
     if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
     {
@@ -129,33 +184,42 @@ int client(const char* server_ip, int server_port, const char* keyFile)
         exit(EXIT_FAILURE);
     }
 
-    // fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK);
-
-    // int flags = fcntl(sock, F_GETFL);
-    // if (flags == -1) {
-    //     printf("read sock flag error!\n");
-    //     close(sock);
-    // }
-    // fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-
-    fprintf(stderr, "\n $$ \n");
-
     fprintf(stderr, "\n Successfully connected to server at - %s and process - %d\n", server_ip, server_port);
 
+    if(RAND_bytes(IV, AES_BLOCK_SIZE) <= 0)
+    {
+        fprintf(stderr, "\nCannot create random bytes for initializing the iv.\n");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
+    if(write(sock, IV, AES_BLOCK_SIZE) <= 0)
+    {
+        fprintf(stderr, "\nError sending IV to server\n");
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
+
+    struct ctr_state dec_state_server;
+    init_ctr(&dec_state_server, IV);
+
+    struct ctr_state enc_state_client;
+    init_ctr(&enc_state_client, IV);
 
 
     struct relay_information *relay_data = (struct relay_information *) 
                                                 malloc(sizeof(struct relay_information));
     relay_data->from = sock;
     relay_data->to = 1;
-    // relay_data->iv = iv_server;
-    // relay_data->keyFileName = keyFileName;
-    // relay_data->enc_dec_state = &dec_state_server;
+    relay_data->iv = IV;
+    relay_data->key_file_name = key_file_name;
+    relay_data->enc_dec_state = &dec_state_server;
 
     pthread_t serverToSTDOUT_thread;
     if( pthread_create( & serverToSTDOUT_thread , NULL , 
         serverToSTDOUT , (void*) relay_data) < 0) {
-                printf("client:: Error::  creating serverToSTDOUT_thread failed.\n");
+                fprintf(stderr, "Creating serverToSTDOUT_thread failed.\n");
                 fflush(stdout);
                 close(sock);
                 free(relay_data);
@@ -163,7 +227,7 @@ int client(const char* server_ip, int server_port, const char* keyFile)
     }
 
     // CALL RELAY
-    relay(0, sock);
+    relay(0, sock, ENCRYPT, key_file_name, IV, &enc_state_client);
 
 
     return 0;

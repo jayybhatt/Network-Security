@@ -25,11 +25,11 @@ void *clientToSshd(void *args) {
     
     int from = relay_data->from;
     int to = relay_data->to;
-    // char *iv_client = relay_data->iv;
-    // char *keyFileName = relay_data->keyFileName;
-    // struct ctr_state *dec_state = relay_data->enc_dec_state;
+    char *iv = relay_data->iv;
+    const char *key_file_name = relay_data->key_file_name;
+    struct ctr_state *dec_state = relay_data->enc_dec_state;
 
-    relay(from, to);//, DECRYPT, iv_client, keyFileName, dec_state);
+    relay(from, to, DECRYPT, key_file_name, iv, dec_state);
 }
 
 
@@ -43,7 +43,6 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
     struct sockaddr_in server_addr;
     int opt = 1;
     int addrlen = sizeof(server_addr);
-    // char *hello = "Hello from server";
       
     // Creating socket file descriptor
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
@@ -51,12 +50,6 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
         fprintf(stderr, "\nSocket creation failed\n");
         exit(EXIT_FAILURE);
     }
-    
-    // server = gethostbyname(ssh_ip);
-    // if (server == NULL) {
-    //     fprintf(stderr,"ERROR, no such host\n");
-    //     exit(0);
-    // }
 
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
                                                   &opt, sizeof(opt)))
@@ -130,7 +123,7 @@ void *process_connection(void *args)
     int client_socket = curr_conn->client_socket;    
     const char* ssh_ip = curr_conn->ssh_ip;
     int ssh_port = curr_conn->ssh_port;
-    const char *keyFile = curr_conn->keyFile;
+    const char *key_file_name = curr_conn->keyFile;
 
     struct hostent* host = NULL;
 
@@ -139,6 +132,8 @@ void *process_connection(void *args)
 
     char sshdIPAddress[16] = ""; // IPv4 can be at most 255.255.255.255 and last index for '\0'
 
+    char IV[AES_BLOCK_SIZE] = {};
+    
     // MAKE A SOCKET AND CONNECT TO SSHD
     int sshdSocket = 0;
     sshdSocket = socket(AF_INET , SOCK_STREAM , 0);
@@ -147,7 +142,7 @@ void *process_connection(void *args)
         fprintf(stderr, "\nCan't make socket connection to sshd server\n");
         close(client_socket);
         free(args);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
 
     // CONNECTING TO THE REMOTE SSHD SERVER
@@ -159,34 +154,44 @@ void *process_connection(void *args)
         exit(EXIT_FAILURE);
     }
 
-    // sshdServer.sin_addr.s_addr = inet_addr(sshdIPAddress);
-    // sshdServer.sin_addr.s_addr = inet_addr(ssh_ip);
     sshdServer.sin_addr.s_addr = ((struct in_addr*) (host->h_addr))->s_addr;
     sshdServer.sin_family = AF_INET;
     sshdServer.sin_port = htons(ssh_port);
  
-    // if(inet_pton(AF_INET, ssh_ip, &sshdServer.sin_addr)<=0) 
-    // {
-    //     fprintf(stderr, "\nInvalid address/ Address not supported \n");
-    //     exit(EXIT_FAILURE);
-    // }
-
     //CONNECT TO REMOTE SSHD
     if (connect(sshdSocket, (struct sockaddr *)&sshdServer, sizeof(sshdServer)) < 0)
     {
         fprintf(stderr, "\nCouldn't connect to the sshd through the created socket\n");
         close(client_socket);
         free(args);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
+
+    // RECEIVING THE IV_CLIENT
+    num_bytes_read = read(client_socket, IV , AES_BLOCK_SIZE);
+    if (num_bytes_read != AES_BLOCK_SIZE) { // AES_BLOCK_SIZE is 16
+        fprintf(stderr, "Error in receiving the IV of the proxy-client side.\n");
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+
+    struct ctr_state enc_state_server;
+    init_ctr(&enc_state_server, IV);
+
+    // initiating the decryption state for client
+    struct ctr_state dec_state_client;
+    init_ctr(&dec_state_client, IV);
+
+    fprintf(stderr, "\n%s\n", IV);
 
     struct relay_information *relay_data = (struct relay_information *) malloc(sizeof(struct relay_information));
     
     relay_data->from = client_socket;
     relay_data->to = sshdSocket;
-    // relay_data->iv = iv_client;
-    // relay_data->keyFileName = keyFileName;
-    // relay_data->enc_dec_state = &dec_state_client;
+    relay_data->iv = IV;
+    relay_data->key_file_name = key_file_name;
+    relay_data->enc_dec_state = &dec_state_client;
     bzero(buffer , SIZE);
 
     // RELAYING ALL THE DATA FROM CLIENT TO SSHD + DECRYPTION
@@ -197,33 +202,13 @@ void *process_connection(void *args)
                 fflush(stdout);
                 close(client_socket);
                 free(relay_data);
-                return 0;
+                exit(EXIT_FAILURE);
     }
 
-    relay(sshdSocket,  client_socket);//, ENCRYPT, iv_server, keyFileName, &enc_state_server);
-    // int flags = fcntl(client_socket, F_GETFL);
-    // if (flags == -1) {
-    //     printf("read sock 1 flag error!\n");
-    //     printf("Closing connections and exit thread!\n");
-    //     close(client_socket);
-    //     close(sshdSocket);
-    //     free(args);
-    //     pthread_exit(0);
-    // }
-    // fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+    relay(sshdSocket,  client_socket, ENCRYPT, key_file_name, IV, &enc_state_server);
     
-    // flags = fcntl(sshdSocket, F_GETFL);
-    // if (flags == -1) {
-    //     printf("read ssh_fd flag error!\n");
-    //     close(client_socket);
-    //     close(sshdSocket);
-    //     free(args);
-    //     pthread_exit(0);
-    // }
-    // fcntl(sshdSocket, F_SETFL, flags | O_NONBLOCK);
-
     close(client_socket);
     free(curr_conn);
-    return 0; 
+    exit(EXIT_FAILURE);
 
 }
