@@ -12,7 +12,7 @@
 #include "client.h"
 #include "server.h"
 
-#define SIZE 1024
+// #define SIZE 1024
 
 void print_app_usage()
 {
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 
 	dest_ip = argv[optind++];
 	dest_port = atoi(argv[optind]);
-	
+
 	printf("dest_ip - %s\n", dest_ip);
 	printf("dest_port - %d\n", dest_port);
 
@@ -157,6 +157,7 @@ int main(int argc, char* argv[])
 */
 	if (!lflag)
 	{
+		fprintf(stderr,"Reached Client\n" );
 		client(dest_ip, dest_port, key);
 		exit(1);
 	}

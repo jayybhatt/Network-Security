@@ -9,7 +9,7 @@
 #include <netdb.h>
 
 
-#define MAX_CLIENTS 100
+#define MAX_CLIENTS 10
 
 
 typedef struct connection_info{
@@ -191,11 +191,25 @@ void *process_connection(void *args)
         pthread_exit(0);
     }
     fcntl(sshdSocket, F_SETFL, flags | O_NONBLOCK);
+    bzero(buffer , SIZE);
 
     while(1)
     {
-        bzero(buffer , SIZE);
-        while ((num_bytes_read = read( client_socket , buffer, SIZE)) > 0)
+    
+        num_bytes_read = read(client_socket, buffer, SIZE);
+        if (num_bytes_read < 0)
+        {
+            fprintf(stderr, "\n Problem Reading\n");
+            exit(EXIT_FAILURE);
+        }
+
+        else if (num_bytes_read == 0)
+        {
+            fprintf(stderr, "\n Connection Closed\n");
+            exit(EXIT_FAILURE);
+        }
+
+        while () > 0)
         {
 
             // if (num_bytes_read > 0)
@@ -207,7 +221,7 @@ void *process_connection(void *args)
             // }
         }
 
-        bzero(buffer , SIZE);
+        // bzero(buffer , SIZE);
         while((num_bytes_read = read( sshdSocket, buffer, SIZE)) > 0)
         {
 

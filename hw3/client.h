@@ -8,13 +8,12 @@
 #include <fcntl.h>
 #include <netdb.h>
 
-
-// #define server_port 8080
-#define SIZE 1024
+#define SIZE 1440
 
 int client(const char* server_ip, int server_port, const char* keyFile)
 {
-    int sock = 0, num_bytes_read, num_bytes_write;
+    
+    int sock = 0, num_bytes_read, num_bytes_write = 0;
     struct sockaddr_in serv_addr;
     struct hostent * host = NULL;
 
@@ -31,9 +30,17 @@ int client(const char* server_ip, int server_port, const char* keyFile)
     memset(&serv_addr, '0', sizeof(serv_addr));
   
 
+    if ((host = gethostbyname(server_ip)) == 0)
+    {
+        fprintf(stderr, "\nHost not found\n");
+        exit(EXIT_FAILURE);
+    }
+
     serv_addr.sin_addr.s_addr = ((struct in_addr*) (host->h_addr))->s_addr;
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(server_port);
+
+
 
     // CAN ADD THE FUNCTIONALITY TO SUPPORT HOSTNAME
       
@@ -54,28 +61,56 @@ int client(const char* server_ip, int server_port, const char* keyFile)
 
     int flags = fcntl(sock, F_GETFL);
     if (flags == -1) {
-        printf("read sockfd flag error!\n");
+        printf("read sock flag error!\n");
         close(sock);
     }
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
 
+    fprintf(stderr, "\n $$ \n");
 
     fprintf(stderr, "\n Successfully connected to server at - %s and process - %d\n", server_ip, server_port);
 
+    bzero(buffer, SIZE);
     while (1)
     {
 
-        bzero(buffer, SIZE);
-
-        while ((num_bytes_read = read(STDIN_FILENO, buffer, SIZE)) > 0)
+        num_bytes_read = read(STDIN_FILENO, buffer, SIZE);
+        if (num_bytes_read < 0)
         {
-            fprintf(stdout, "Client typed - %s\n",buffer );
-            if (write(sock , buffer , strlen(buffer))>0)             
-                fprintf(stdout, "Sent to pbproxy-s - %s\n",buffer );
-            
+            fprintf(stderr, "\n Problem Reading\n");
+            exit(EXIT_FAILURE);
         }
 
-        bzero(buffer, SIZE);
+        else if (num_bytes_read == 0)
+        {
+            fprintf(stderr, "\n Connection Closed\n");
+            exit(EXIT_FAILURE);
+        }
+
+
+        else// if (num_bytes_read > 0)
+        {
+            fprintf(stdout, "Client typed - %s\n",buffer );
+            int num_bytes_write_total = 0;
+
+            while (num_bytes_write_total < num_bytes_read)
+            {
+                
+                num_bytes_write = write(sock , buffer+num_bytes_write_total, num_bytes_read - num_bytes_write_total);
+                if (num_bytes_write <= 0)
+                {
+                    fprintf(stderr, "\nConnection Closed\n");
+                    close(sock);
+
+                    return 0;
+                }
+                fprintf(stdout, "Sent to pbproxy-s - %s\n",buffer );
+                num_bytes_write_total += num_bytes_write;
+            }             
+                
+        }
+
+        // bzero(buffer, SIZE);
             
         while((num_bytes_read = read(sock, buffer, SIZE)) > 0)
         {
