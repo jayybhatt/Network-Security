@@ -1,11 +1,16 @@
 #include <string.h>
-#include <stdio.h>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
+#include <openssl/conf.h>
+#include <openssl/evp.h>
 #include <netdb.h>
 #include "crypt.h"
+#include "util.h"
 #include "client.h"
 #include "server.h"
 
@@ -18,6 +23,31 @@ void print_app_usage()
     puts("them to <destination>:<port> ");
   	puts("-k  Use the symmetric key contained in <keyfile> (as a hexadecimal string)");
 
+}
+
+
+/*
+ * Reference:
+ * http://stackoverflow.com/questions/174531/easiest-way-to-get-files-contents-in-c
+ */
+unsigned char* read_file(char* filename)
+{
+	unsigned char *buffer = NULL;
+	long length;
+	FILE *f = fopen (filename, "rb");
+
+	if (f) {
+		fseek (f, 0, SEEK_END);
+		length = ftell (f);
+		fseek (f, 0, SEEK_SET);
+		buffer = malloc (length);
+		if (buffer)
+		{
+			fread (buffer, 1, length, f);
+		}
+		fclose (f);
+	}
+	return buffer;
 }
 
 
@@ -61,7 +91,7 @@ int main(int argc, char* argv[])
 
 				key = optarg;
 
-					// key = read_file(optarg); 
+				// key = read_file(optarg); 
 				// if (!key)
 				// {
 				// 	printf("File Read Error - %s\n", optarg);
@@ -139,4 +169,3 @@ int main(int argc, char* argv[])
 
     return 0;
 }
-

@@ -25,11 +25,11 @@ void *clientToSshd(void *args) {
     
     int from = relay_data->from;
     int to = relay_data->to;
-    char *iv = relay_data->iv;
-    const char *key_file_name = relay_data->key_file_name;
+    char *IV = relay_data->iv;
+    const char *keyFileName = relay_data->keyFileName;
     struct ctr_state *dec_state = relay_data->enc_dec_state;
 
-    relay(from, to, DECRYPT, key_file_name, iv, dec_state);
+    relay(from, to, DECRYPT, IV, keyFileName, dec_state);
 }
 
 
@@ -123,7 +123,7 @@ void *process_connection(void *args)
     int client_socket = curr_conn->client_socket;    
     const char* ssh_ip = curr_conn->ssh_ip;
     int ssh_port = curr_conn->ssh_port;
-    const char *key_file_name = curr_conn->keyFile;
+    const char *keyFileName = curr_conn->keyFile;
 
     struct hostent* host = NULL;
 
@@ -132,8 +132,6 @@ void *process_connection(void *args)
 
     char sshdIPAddress[16] = ""; // IPv4 can be at most 255.255.255.255 and last index for '\0'
 
-    char IV[AES_BLOCK_SIZE] = {};
-    
     // MAKE A SOCKET AND CONNECT TO SSHD
     int sshdSocket = 0;
     sshdSocket = socket(AF_INET , SOCK_STREAM , 0);
@@ -142,7 +140,7 @@ void *process_connection(void *args)
         fprintf(stderr, "\nCan't make socket connection to sshd server\n");
         close(client_socket);
         free(args);
-        exit(EXIT_FAILURE);
+        return NULL;
     }
 
     // CONNECTING TO THE REMOTE SSHD SERVER
@@ -154,6 +152,8 @@ void *process_connection(void *args)
         exit(EXIT_FAILURE);
     }
 
+    // sshdServer.sin_addr.s_addr = inet_addr(sshdIPAddress);
+    // sshdServer.sin_addr.s_addr = inet_addr(ssh_ip);
     sshdServer.sin_addr.s_addr = ((struct in_addr*) (host->h_addr))->s_addr;
     sshdServer.sin_family = AF_INET;
     sshdServer.sin_port = htons(ssh_port);
@@ -167,30 +167,50 @@ void *process_connection(void *args)
         exit(EXIT_FAILURE);
     }
 
+
+    // unsigned char  iv_server[AES_BLOCK_SIZE];
+    // if(!RAND_bytes(iv_server, AES_BLOCK_SIZE))
+    // {
+    //     fprintf(stderr, "Cannot create random bytes for initializing the iv.\n");
+    //     close(client_socket);
+    //     exit(EXIT_FAILURE);
+    // }
+
+
+    // // SENDING THE IV_SERVER TO THE PROXY-SERVER
+    // // source to learn: https://vcansimplify.wordpress.com/2013/03/14/c-socket-tutorial-echo-server/
+    // if (write(client_socket, iv_server, AES_BLOCK_SIZE) <= 0) {
+    //     fprintf(stderr, "Cannot send the IV to the proxy-client side.\n");
+    //     close(client_socket);
+    //     exit(EXIT_FAILURE);
+    // }
+
+
+    // // initiating the encryption state for server
+    // struct ctr_state enc_state_server;
+    // init_ctr(&enc_state_server, iv_server);
+
+
     // RECEIVING THE IV_CLIENT
-    num_bytes_read = read(client_socket, IV , AES_BLOCK_SIZE);
-    if (num_bytes_read != AES_BLOCK_SIZE) { // AES_BLOCK_SIZE is 16
+    unsigned char  IV[AES_BLOCK_SIZE];
+    int bytesReceived = read(client_socket, IV , AES_BLOCK_SIZE);
+    if (bytesReceived != AES_BLOCK_SIZE) { // AES_BLOCK_SIZE is 16
         fprintf(stderr, "Error in receiving the IV of the proxy-client side.\n");
         close(client_socket);
         exit(EXIT_FAILURE);
     }
 
-
-    struct ctr_state enc_state_server;
-    init_ctr(&enc_state_server, IV);
-
     // initiating the decryption state for client
     struct ctr_state dec_state_client;
     init_ctr(&dec_state_client, IV);
 
-    fprintf(stderr, "\n%s\n", IV);
 
     struct relay_information *relay_data = (struct relay_information *) malloc(sizeof(struct relay_information));
     
     relay_data->from = client_socket;
     relay_data->to = sshdSocket;
     relay_data->iv = IV;
-    relay_data->key_file_name = key_file_name;
+    relay_data->keyFileName = keyFileName;
     relay_data->enc_dec_state = &dec_state_client;
     bzero(buffer , SIZE);
 
@@ -202,13 +222,15 @@ void *process_connection(void *args)
                 fflush(stdout);
                 close(client_socket);
                 free(relay_data);
-                exit(EXIT_FAILURE);
+                return 0;
     }
 
-    relay(sshdSocket,  client_socket, ENCRYPT, key_file_name, IV, &enc_state_server);
-    
+
+
+    relay(sshdSocket,  client_socket, ENCRYPT, IV, keyFileName, &dec_state_client);
+
     close(client_socket);
     free(curr_conn);
-    exit(EXIT_FAILURE);
+    return 0; 
 
 }
