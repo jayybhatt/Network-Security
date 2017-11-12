@@ -113,13 +113,9 @@ int main(int argc, char* argv[])
 
 /*
 /////////////////
-
-
-*** CALL THE CLIENT FUNCTION HERE
 */
 	if (!lflag)
 	{
-		fprintf(stderr,"Reached Client\n" );
 		client(dest_ip, dest_port, key);
 		exit(1);
 	}

@@ -50,7 +50,7 @@ void relay(int src, int dst, int encrypt_decrypt, char* iv, const char* keyFileN
 
     int num_bytes_read, num_bytes_write = 0;
     char indata[SIZE] = {0};
-    char outdata[OUTPUT_SIZE];
+    char outdata[OUTPUT_SIZE] = {0};
 
     // bzero(indata, SIZE);
 

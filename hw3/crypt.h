@@ -2,7 +2,7 @@
 
 
 
-// int encrypt(const unsigned char* enc_key, char* p_txt, struct ctr_state * crypto_state, int length, char* c_txt)
+// int encrypt(const unsigned char* enc_key, char* plain_txt, struct ctr_state * crypto_state, int length, char* cipher_txt)
 // { 
         
 //     AES_KEY key;
@@ -18,7 +18,7 @@
 // 	// init_ctr(&state, iv); //Counter call
 
 // 	//Encrypting Blocks of 16 bytes and writing the output.txt with ciphertext
-// 	// unsigned char* encrypted_data = (unsigned char*)malloc(sizeof(p_txt))	
+// 	// unsigned char* encrypted_data = (unsigned char*)malloc(sizeof(plain_txt))	
 // 	int num_bytes_read_total = 0, num_bytes_read = 0;
 
 // 	while (num_bytes_read_total < length)
@@ -29,27 +29,27 @@
 // 		num_bytes_read = remaining_bytes < AES_BLOCK_SIZE?remaining_bytes:AES_BLOCK_SIZE;
 // 		bzero(indata, AES_BLOCK_SIZE);
 		
-// 		strncpy(indata, p_txt+num_bytes_read_total, num_bytes_read); 
+// 		strncpy(indata, plain_txt+num_bytes_read_total, num_bytes_read); 
 		
 // 		bzero(outdata, AES_BLOCK_SIZE);
 
 // 		AES_ctr128_encrypt(indata, outdata, num_bytes_read, &key, crypto_state->ivec, crypto_state->ecount, &(crypto_state->num));
         
 // 		// bytes_written = fwrite(outdata, 1, bytes_read, writeFile); 
-// 		strcat(c_txt, outdata);
+// 		strcat(cipher_txt, outdata);
 
 // 		num_bytes_read_total += num_bytes_read;
 
 // 	}
 
-// 	// fprintf(stderr,"\nEncrypted  %s\n",c_txt);
+// 	// fprintf(stderr,"\nEncrypted  %s\n",cipher_txt);
 
 // 	return num_bytes_read_total;
 //         // num_bytes_write = write(dst , crypto_text+num_bytes_write_total, crypt_size - num_bytes_write_total);
 	
 // }
 
-// int decrypt(const unsigned char* dec_key, char* c_txt, struct ctr_state * crypto_state, int length, char* p_txt)
+// int decrypt(const unsigned char* dec_key, char* cipher_txt, struct ctr_state * crypto_state, int length, char* plain_txt)
 // { 
         
 //     AES_KEY key;
@@ -65,7 +65,7 @@
 // 	// init_ctr(&state, iv); //Counter call
 
 // 	//Encrypting Blocks of 16 bytes and writing the output.txt with ciphertext
-// 	// unsigned char* decrypted_data = (unsigned char*)malloc(sizeof(c_txt))	
+// 	// unsigned char* decrypted_data = (unsigned char*)malloc(sizeof(cipher_txt))	
 // 	int num_bytes_read_total = 0, num_bytes_read = 0;
 
 // 	while (num_bytes_read_total < length)
@@ -75,26 +75,22 @@
 // 		num_bytes_read = remaining_bytes < AES_BLOCK_SIZE?remaining_bytes:AES_BLOCK_SIZE;
 // 		bzero(indata, AES_BLOCK_SIZE);
 
-// 		strncpy(indata, c_txt+num_bytes_read_total, num_bytes_read); 
+// 		strncpy(indata, cipher_txt+num_bytes_read_total, num_bytes_read); 
 		
 // 		bzero(outdata,AES_BLOCK_SIZE);
 // 		AES_ctr128_encrypt(indata, outdata, num_bytes_read, &key, crypto_state->ivec, crypto_state->ecount, &(crypto_state->num));
         
 // 		// bytes_written = fwrite(outdata, 1, bytes_read, writeFile); 
-// 		strcat(p_txt, outdata);
+// 		strcat(plain_txt, outdata);
 
 // 		num_bytes_read_total += num_bytes_read;
 
 // 	}
-// 	// fprintf(stderr,"\nDecrypted  %s\n",p_txt);
+// 	// fprintf(stderr,"\nDecrypted  %s\n",plain_txt);
 // 	return num_bytes_read_total;
 //         // num_bytes_write = write(dst , crypto_text+num_bytes_write_total, crypt_size - num_bytes_write_total);
 	
 // }
-
-#ifndef _ENCRYPTION
-#define _ENCRYPTION
-
 
 #define ENCRYPT 1
 #define DECRYPT 0
@@ -122,20 +118,20 @@ int init_ctr(struct ctr_state *state, const unsigned char iv[16])
 }
 
 int read_AES_BLOCK_SIZE(char *from, char *to, int totalFromSize, int startFrom) {
-    int bytesRead = 0;
+    int num_bytes_read = 0;
     int i;
     for (i = startFrom; i < (startFrom + AES_BLOCK_SIZE) && i < totalFromSize; ++i) {
         to[i - startFrom] = from[i];
-        bytesRead++;
+        num_bytes_read++;
     }
-    return bytesRead;
+    return num_bytes_read;
 }
 
-// int encrypt(const unsigned char* enc_key, char* p_txt, struct ctr_state * crypto_state, int length, char* c_txt)
+// int encrypt(const unsigned char* enc_key, char* plain_txt, struct ctr_state * crypto_state, int length, char* cipher_txt)
 
 // source to learn: http://www.gurutechnologies.net/blog/aes-ctr-encryption-in-c/
 int encrypt(const unsigned char * enc_key, struct ctr_state * enc_state,
-	char * inputBuffer, int inputBufferSize , char * outputBuffer) {
+	char * plain_txt, int plain_txt_size , char * cipher_txt) {
 
     
     //Initializing the encryption KEY
@@ -146,35 +142,34 @@ int encrypt(const unsigned char * enc_key, struct ctr_state * enc_state,
     }
     
     int outBufCounter= 0;
-    int bytesReadSoFar = 0;
+    int num_bytes_read_total = 0;
 
 
     //Encrypting the data block by block
-    while(bytesReadSoFar < inputBufferSize) {
+    while(num_bytes_read_total < plain_txt_size) {
 
-        unsigned char AES_BLOCK_SIZE_Buffer[AES_BLOCK_SIZE];
-        unsigned char ciphertext[AES_BLOCK_SIZE];
+        unsigned char indata[AES_BLOCK_SIZE];
+        unsigned char outdata[AES_BLOCK_SIZE];
 
-        int bytesRead = read_AES_BLOCK_SIZE(inputBuffer, AES_BLOCK_SIZE_Buffer,
-            inputBufferSize, bytesReadSoFar);
+        int num_bytes_read = read_AES_BLOCK_SIZE(plain_txt, indata, plain_txt_size, num_bytes_read_total);
 
         // AES_ctr128_encrypt(indata, outdata, bytes_read, &key, state.ivec, state.ecount, &state.num);
-        AES_ctr128_encrypt(AES_BLOCK_SIZE_Buffer, ciphertext, bytesRead, &key, enc_state->ivec, enc_state->ecount, &(enc_state->num));
+        AES_ctr128_encrypt(indata, outdata, num_bytes_read, &key, enc_state->ivec, enc_state->ecount, &(enc_state->num));
         
         int i;
-        for(i = 0; i < bytesRead ; i++ ) {
-            outputBuffer[outBufCounter + i] = ciphertext[i];
+        for(i = 0; i < num_bytes_read ; i++ ) {
+            cipher_txt[outBufCounter + i] = outdata[i];
         }
         
-        outBufCounter +=  bytesRead ;
-        bytesReadSoFar += AES_BLOCK_SIZE;
+        outBufCounter +=  num_bytes_read ;
+        num_bytes_read_total += AES_BLOCK_SIZE;
     }       
     return outBufCounter ; 
 }
 
 
 int decrypt(const unsigned char * enc_key, struct ctr_state * dec_state,
-	char * inputBuffer, int inputBufferSize , char * outputBuffer) {
+	char * cipher_txt, int cipher_txt_size , char * plain_txt) {
     
     //Initializing the encryption KEY
     AES_KEY key;
@@ -185,30 +180,27 @@ int decrypt(const unsigned char * enc_key, struct ctr_state * dec_state,
     
 
     int outBufCounter= 0;
-    int bytesReadSoFar = 0;
+    int num_bytes_read_total = 0;
 
     //Decrypting block by block 
-    while(bytesReadSoFar < inputBufferSize) {
+    while(num_bytes_read_total < cipher_txt_size) {
 
-        unsigned char AES_BLOCK_SIZE_Buffer[AES_BLOCK_SIZE];
-        unsigned char ciphertext[AES_BLOCK_SIZE];
+        unsigned char outdata[AES_BLOCK_SIZE];
+        unsigned char indata[AES_BLOCK_SIZE];
 
-        int bytesRead = read_AES_BLOCK_SIZE(inputBuffer, ciphertext,
-            inputBufferSize, bytesReadSoFar);
+        int num_bytes_read = read_AES_BLOCK_SIZE(cipher_txt, indata, cipher_txt_size, num_bytes_read_total);
 
         
-        AES_ctr128_encrypt(ciphertext, AES_BLOCK_SIZE_Buffer, bytesRead, &key, dec_state->ivec, dec_state->ecount, &(dec_state->num));
+        AES_ctr128_encrypt(indata, outdata, num_bytes_read, &key, dec_state->ivec, dec_state->ecount, &(dec_state->num));
        
         int i;
-        for(i = 0; i < bytesRead ; i++ ) {
-            outputBuffer[outBufCounter + i] = AES_BLOCK_SIZE_Buffer[i];
+        for(i = 0; i < num_bytes_read ; i++ ) {
+            plain_txt[outBufCounter + i] = outdata[i];
         }
         
-        outBufCounter +=  bytesRead;
-        bytesReadSoFar += AES_BLOCK_SIZE;
+        outBufCounter +=  num_bytes_read;
+        num_bytes_read_total += AES_BLOCK_SIZE;
     }
     
-    return outBufCounter ;    
+    return outBufCounter;    
 }
-
-#endif

@@ -8,7 +8,7 @@ typedef struct connection_info{
     const char *keyFile;
 } connection_info;
 
-void *clientToSshd(void *args) {
+void *read_from_client(void *args) {
     struct relay_information *relay_data;
     relay_data = (struct relay_information *) args;
     
@@ -176,10 +176,10 @@ void *process_connection(void *args)
     bzero(buffer , SIZE);
 
     // RELAYING ALL THE DATA FROM CLIENT TO SSHD + DECRYPTION
-    pthread_t clientToSshd_thread;
-    if( pthread_create( & clientToSshd_thread , NULL , 
-        clientToSshd , (void*) relay_data) < 0) {
-                fprintf(stderr, "Creating clientToSshd_thread failed.\n");
+    pthread_t read_from_client_thread;
+    if( pthread_create( & read_from_client_thread , NULL , 
+        read_from_client , (void*) relay_data) < 0) {
+                fprintf(stderr, "Creating read_from_client_thread failed.\n");
                 close(client_socket);
                 free(relay_data);
                 exit(EXIT_FAILURE);

@@ -1,6 +1,6 @@
 
 
-void* serverToSTDOUT(void* args)
+void* read_from_server(void* args)
 {
 
     struct relay_information *relay_data;
@@ -80,10 +80,10 @@ int client(const char* server_ip, int server_port, const char* keyFileName)
     relay_data->keyFileName = keyFileName;
     relay_data->enc_dec_state = &enc_state_client;
 
-    pthread_t serverToSTDOUT_thread;
-    if( pthread_create( & serverToSTDOUT_thread , NULL , 
-        serverToSTDOUT , (void*) relay_data) < 0) {
-                printf("client:: Error::  creating serverToSTDOUT_thread failed.\n");
+    pthread_t read_from_server_thread;
+    if( pthread_create( & read_from_server_thread , NULL , 
+        read_from_server , (void*) relay_data) < 0) {
+                printf("client:: Error::  creating read_from_server_thread failed.\n");
                 fflush(stdout);
                 close(sock);
                 free(relay_data);
