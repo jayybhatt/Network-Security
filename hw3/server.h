@@ -1,5 +1,5 @@
 
-#define MAX_CLIENTS 10
+#define CONN_LIMIT 10
 
 typedef struct connection_info{
     const char *ssh_ip;
@@ -9,16 +9,15 @@ typedef struct connection_info{
 } connection_info;
 
 void *read_from_client(void *args) {
-    struct relay_information *relay_data;
-    relay_data = (struct relay_information *) args;
+    sock_stream_info *stream_data;
+    stream_data = (sock_stream_info *) args;
     
-    int from = relay_data->from;
-    int to = relay_data->to;
-    char *IV = relay_data->iv;
-    const char *keyFileName = relay_data->keyFileName;
-    struct ctr_state *dec_state = relay_data->enc_dec_state;
+    int src = stream_data->src;
+    int dst = stream_data->dst;
+    const char *keyFileName = stream_data->keyFileName;
+    struct ctr_state *ctr_state = stream_data->ctr_state;
 
-    relay(from, to, DECRYPT, IV, keyFileName, dec_state);
+    sock_stream(src, dst, DECRYPT, keyFileName, ctr_state);
 }
 
 void *process_connection(void *args);
@@ -26,7 +25,7 @@ void *process_connection(void *args);
 int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* keyFile)
 {
     
-    int server_fd, new_socket, num_bytes_read;
+    int server_fd, new_socket;
     struct sockaddr_in server_addr;
     int opt = 1;
     int addrlen = sizeof(server_addr);
@@ -56,17 +55,16 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
         fprintf(stderr, "\nBind failed\n");
         exit(EXIT_FAILURE);
     }
-    fprintf(stderr, "Binding to port %d successful\n", listen_on_port);
+    fprintf(stderr, "\nBinding to port %d successful\n", listen_on_port);
 
 
-    if (listen(server_fd, MAX_CLIENTS) < 0)
+    if (listen(server_fd, CONN_LIMIT) < 0)
     {
         fprintf(stderr, "\nListen on port %d failed\n", listen_on_port);
         exit(EXIT_FAILURE);
     }
-    fprintf(stderr, "waiting for connections");
+    fprintf(stderr, "\nWaiting for connections..\n");
 
-    while (1)
     while (new_socket = accept(server_fd, (struct sockaddr *)&server_addr, 
                        (socklen_t*)&addrlen))
     {
@@ -82,11 +80,10 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
 
         if (pthread_create(&conn_process_thread, NULL, process_connection, main_conn) < 0)
         {
-            fprintf(stderr, "\nThread creation error\n");
+            fprintf(stderr, "\nError in creating thread\n");
             close(server_fd);
             exit(EXIT_FAILURE);
         }
-
 
     }
 
@@ -114,23 +111,18 @@ void *process_connection(void *args)
 
     struct hostent* host = NULL;
 
-    char buffer[1024] = {0};
-    int num_bytes_read = 0;
-
     char sshdIPAddress[16] = ""; // IPv4 can be at most 255.255.255.255 and last index for '\0'
 
     // MAKE A SOCKET AND CONNECT TO SSHD
     int sshdSocket = 0;
-    sshdSocket = socket(AF_INET , SOCK_STREAM , 0);
-
-    if (sshdSocket == -1) {
-        fprintf(stderr, "\nCan't make socket connection to sshd server\n");
+    if ((sshdSocket = socket(AF_INET , SOCK_STREAM , 0)) < 0)
+    {
+        fprintf(stderr, "\nError creating sshd socket\n");
         close(client_socket);
         free(args);
-        return NULL;
+        exit(EXIT_FAILURE);
     }
 
-    // CONNECTING TO THE REMOTE SSHD SERVER
     struct sockaddr_in sshdServer;
 
     if ((host = gethostbyname(ssh_ip)) == 0)
@@ -143,51 +135,47 @@ void *process_connection(void *args)
     sshdServer.sin_family = AF_INET;
     sshdServer.sin_port = htons(ssh_port);
  
-    //CONNECT TO REMOTE SSHD
     if (connect(sshdSocket, (struct sockaddr *)&sshdServer, sizeof(sshdServer)) < 0)
     {
-        fprintf(stderr, "\nCouldn't connect to the sshd through the created socket\n");
+        fprintf(stderr, "\nError in connecting to sshd.\n");
         close(client_socket);
         free(args);
         exit(EXIT_FAILURE);
     }
 
-    // RECEIVING THE IV_CLIENT
     unsigned char  IV[AES_BLOCK_SIZE];
     int bytesReceived = read(client_socket, IV , AES_BLOCK_SIZE);
-    if (bytesReceived != AES_BLOCK_SIZE) { // AES_BLOCK_SIZE is 16
-        fprintf(stderr, "Error in receiving the IV of the proxy-client side.\n");
+    if (bytesReceived != AES_BLOCK_SIZE) 
+    { // AES_BLOCK_SIZE is 16
+        fprintf(stderr, "\nError in receiving the IV.\n");
         close(client_socket);
         exit(EXIT_FAILURE);
     }
 
     // initiating the decryption state for client
-    struct ctr_state dec_state_client;
-    init_ctr(&dec_state_client, IV);
+    struct ctr_state ctr_state;
+    init_ctr(&ctr_state, IV);
 
 
-    struct relay_information *relay_data = (struct relay_information *) malloc(sizeof(struct relay_information));
+    sock_stream_info *stream_data = (sock_stream_info *) malloc(sizeof(sock_stream_info));
     
-    relay_data->from = client_socket;
-    relay_data->to = sshdSocket;
-    relay_data->iv = IV;
-    relay_data->keyFileName = keyFileName;
-    relay_data->enc_dec_state = &dec_state_client;
-    bzero(buffer , SIZE);
+    stream_data->src = client_socket;
+    stream_data->dst = sshdSocket;
+    stream_data->keyFileName = keyFileName;
+    stream_data->ctr_state = &ctr_state;
 
-    // RELAYING ALL THE DATA FROM CLIENT TO SSHD + DECRYPTION
     pthread_t read_from_client_thread;
     if( pthread_create( & read_from_client_thread , NULL , 
-        read_from_client , (void*) relay_data) < 0) {
-                fprintf(stderr, "Creating read_from_client_thread failed.\n");
+        read_from_client , (void*) stream_data) < 0) {
+                fprintf(stderr, "\nError while creating thread.\n");
                 close(client_socket);
-                free(relay_data);
+                free(stream_data);
                 exit(EXIT_FAILURE);
     }
 
 
 
-    relay(sshdSocket,  client_socket, ENCRYPT, IV, keyFileName, &dec_state_client);
+    sock_stream(sshdSocket, client_socket, ENCRYPT, keyFileName, &ctr_state);
 
     close(client_socket);
     free(curr_conn);

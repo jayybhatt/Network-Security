@@ -11,24 +11,20 @@
 #include <openssl/rand.h>	
 #include <ctype.h>
 
-#include "crypt.h"
-#include "util.h"
+#include "helper.h"
 #include "client.h"
 #include "server.h"
 
 int main(int argc, char* argv[])
 {
-	int lflag = 0, kflag = 0, index = 0;
+	int lflag = 0, kflag = 0;
 	unsigned int listen_on_port = 0;
 	char c, *dest_ip = NULL;
 	int dest_port = 0;
 
 	char * key = NULL;
-    char plaintext[SIZE] = {0};
 
-    int valread;
-
-	while ((c = getopt (argc, argv, ":l:k:h")) != -1)
+	while ((c = getopt (argc, argv, ":l:k:")) != -1)
 	{
 
 		switch (c)
@@ -55,18 +51,8 @@ int main(int argc, char* argv[])
 				}
 
 				key = optarg;
-
-				// key = read_file(optarg); 
-				// if (!key)
-				// {
-				// 	printf("File Read Error - %s\n", optarg);
-				// }
 				
 				break;
-
-			case 'h':
-				print_app_usage();
-				exit(1);
 
 	      	case ':':       // -f or -o without operand 
 				if (optopt == 'k')
@@ -90,12 +76,6 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	// printf ("lflag = %d, listen_on_port = %d\n",
-	// 	lflag, listen_on_port);
-
-	// printf ("kflag = %d, key = %s\n",
-	// 	kflag, key);  
-
 	//check if there are enough arguments supplied to the program
 	if (optind + 2 > argc)
 	{
@@ -107,21 +87,15 @@ int main(int argc, char* argv[])
 	dest_ip = argv[optind++];
 	dest_port = atoi(argv[optind]);
 
-	printf("dest_ip - %s\n", dest_ip);
+	printf("dest_host - %s\n", dest_ip);
 	printf("dest_port - %d\n", dest_port);
 
-
-/*
-/////////////////
-*/
 	if (!lflag)
 	{
 		client(dest_ip, dest_port, key);
 		exit(1);
 	}
-/*	
-// /////////////////
-*/
+
     if (lflag)
     {
     	server(listen_on_port, dest_ip, dest_port, key);
