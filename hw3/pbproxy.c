@@ -1,55 +1,20 @@
+#include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <openssl/ssl.h>
-#include <openssl/bio.h>
-#include <openssl/err.h>
-#include <openssl/conf.h>
-#include <openssl/evp.h>
 #include <netdb.h>
+#include <pthread.h>
+#include <arpa/inet.h>
+#include <openssl/aes.h>
+#include <openssl/rand.h>	
+#include <ctype.h>
+
 #include "crypt.h"
 #include "util.h"
 #include "client.h"
 #include "server.h"
-
-// #define SIZE 1024
-
-void print_app_usage()
-{
-	puts("pbproxy [-l port] -k keyfile destination port");
-	puts("\n-l  Reverse-proxy mode: listen for inbound connections on <port> and relay");
-    puts("them to <destination>:<port> ");
-  	puts("-k  Use the symmetric key contained in <keyfile> (as a hexadecimal string)");
-
-}
-
-
-/*
- * Reference:
- * http://stackoverflow.com/questions/174531/easiest-way-to-get-files-contents-in-c
- */
-unsigned char* read_file(char* filename)
-{
-	unsigned char *buffer = NULL;
-	long length;
-	FILE *f = fopen (filename, "rb");
-
-	if (f) {
-		fseek (f, 0, SEEK_END);
-		length = ftell (f);
-		fseek (f, 0, SEEK_SET);
-		buffer = malloc (length);
-		if (buffer)
-		{
-			fread (buffer, 1, length, f);
-		}
-		fclose (f);
-	}
-	return buffer;
-}
-
 
 int main(int argc, char* argv[])
 {

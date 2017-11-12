@@ -1,12 +1,3 @@
-#include <sys/socket.h>
-#include <stdlib.h>
-#include <netinet/in.h>
-#include <string.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <stdio.h>
-#include <netdb.h>
-#include <pthread.h>
 
 
 void* serverToSTDOUT(void* args)
@@ -17,10 +8,10 @@ void* serverToSTDOUT(void* args)
     
     int from = relay_data->from;
     int to = relay_data->to;
-    char *iv_server = relay_data->iv;
+    char *IV = relay_data->iv;
     const char *keyFileName = relay_data->keyFileName;
     struct ctr_state *dec_state = relay_data->enc_dec_state;
-    relay(from, to, DECRYPT, iv_server, keyFileName, dec_state);
+    relay(from, to, DECRYPT, IV, keyFileName, dec_state);
 }
 
 int client(const char* server_ip, int server_port, const char* keyFileName)
@@ -55,7 +46,7 @@ int client(const char* server_ip, int server_port, const char* keyFileName)
         exit(EXIT_FAILURE);
     }
 
-    // initializing the iv and send it to the proxy-server
+    // initializing the IV and send it to the proxy-server
     // source to learn regarding AES CTR: http://www.gurutechnologies.net/blog/aes-ctr-encryption-in-c/
     unsigned char  IV[AES_BLOCK_SIZE];
     if(!RAND_bytes(IV, AES_BLOCK_SIZE))
@@ -66,7 +57,7 @@ int client(const char* server_ip, int server_port, const char* keyFileName)
     }
 
 
-    // SENDING THE IV_CLIENT TO THE PROXY-SERVER
+    // SENDING THE IV TO THE PROXY-SERVER
     // source to learn: https://vcansimplify.wordpress.com/2013/03/14/c-socket-tutorial-echo-server/
     if (write(sock, IV, AES_BLOCK_SIZE) <= 0) {
         fprintf(stderr, "Cannot send the IV to the proxy-server side.\n");

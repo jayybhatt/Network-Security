@@ -1,20 +1,3 @@
-// #include <openssl/aes.h>
-// #include <openssl/rand.h>
-
-// #define ENCRYPT 1
-// #define DECRYPT 0
-
-// struct ctr_state
-// {
-//     unsigned char ivec[AES_BLOCK_SIZE];
-//     unsigned int num;
-//     unsigned char ecount[AES_BLOCK_SIZE];
-// };
-
-
-// // int bytes_read, bytes_written;
-// // unsigned char iv[AES_BLOCK_SIZE];
-// // struct ctr_state state;
 
 
 
@@ -112,18 +95,6 @@
 #ifndef _ENCRYPTION
 #define _ENCRYPTION
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <openssl/aes.h>
-#include <openssl/rand.h>	
-#include <sys/socket.h>
-#include <arpa/inet.h>	
-#include <unistd.h>	
-#include <pthread.h>
-#include <netdb.h>	
-#include <ctype.h>
-
 
 #define ENCRYPT 1
 #define DECRYPT 0
@@ -160,32 +131,17 @@ int read_AES_BLOCK_SIZE(char *from, char *to, int totalFromSize, int startFrom) 
     return bytesRead;
 }
 
+// int encrypt(const unsigned char* enc_key, char* p_txt, struct ctr_state * crypto_state, int length, char* c_txt)
+
 // source to learn: http://www.gurutechnologies.net/blog/aes-ctr-encryption-in-c/
-int encrypt(const char * keyfileName, unsigned char * iv, struct ctr_state * enc_state,
+int encrypt(const unsigned char * enc_key, struct ctr_state * enc_state,
 	char * inputBuffer, int inputBufferSize , char * outputBuffer) {
 
-    // FIRST READING THE KEY FROM THE FILE
-    FILE * key_file = fopen(keyfileName, "rb");
-    
-    if(key_file == NULL) {
-        printf("encrypt:: Error:: error in opening the key_file.\n");
-        fflush(stdout);
-        return -1;
-    }
-    
-    unsigned char enc_key[16];
-    if(fread(enc_key, 1, AES_BLOCK_SIZE, key_file) != 16) {
-        printf("encrypt:: Error:: error in reading the key.\n");
-        fflush(stdout);
-        return -1;
-    }
-    fclose(key_file);
     
     //Initializing the encryption KEY
     AES_KEY key;
     if (AES_set_encrypt_key(enc_key, 128, &key) < 0) {
-        printf("encrypt:: Error:: could not set encryption key.\n");
-        fflush(stdout);
+        fprintf(stderr, "Could not set encryption key.\n");
         return -1;
     }
     
@@ -217,32 +173,13 @@ int encrypt(const char * keyfileName, unsigned char * iv, struct ctr_state * enc
 }
 
 
-int decrypt(const char * keyfileName, unsigned char * iv, struct ctr_state * dec_state,
+int decrypt(const unsigned char * enc_key, struct ctr_state * dec_state,
 	char * inputBuffer, int inputBufferSize , char * outputBuffer) {
-
-    // FIRST READING THE KEY FROM THE FILE
-    FILE * key_file = fopen(keyfileName, "rb");
-    
-    if(key_file == NULL) {
-        printf("decrypt:: Error:: error in opening the key_file.\n");
-        fflush(stdout);
-        return -1;
-    }
-    
-    unsigned char enc_key[16];
-    if(fread(enc_key, 1, AES_BLOCK_SIZE, key_file) != 16) {
-        printf("decrypt:: Error:: error in reading the key.\n");
-        fflush(stdout);
-        return -1;
-    }
-
-    fclose(key_file);
     
     //Initializing the encryption KEY
     AES_KEY key;
     if (AES_set_encrypt_key(enc_key, 128, &key) < 0) {
-        printf("decrypt:: Error:: could not set encryption key.\n");
-        fflush(stdout);
+        fprintf(stderr, "Could not set encryption key.\n");
         return -1;
     }
     

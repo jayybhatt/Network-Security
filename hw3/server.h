@@ -1,16 +1,5 @@
-#include <stdio.h>
-#include <sys/socket.h>
-#include <stdlib.h>
-#include <netinet/in.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <netdb.h>
-
 
 #define MAX_CLIENTS 10
-
 
 typedef struct connection_info{
     const char *ssh_ip;
@@ -31,8 +20,6 @@ void *clientToSshd(void *args) {
 
     relay(from, to, DECRYPT, IV, keyFileName, dec_state);
 }
-
-
 
 void *process_connection(void *args);
 
@@ -79,6 +66,7 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
     }
     fprintf(stderr, "waiting for connections");
 
+    while (1)
     while (new_socket = accept(server_fd, (struct sockaddr *)&server_addr, 
                        (socklen_t*)&addrlen))
     {
@@ -107,10 +95,9 @@ int server(int listen_on_port, const char* ssh_ip, int ssh_port, const char* key
         fprintf(stderr, "\nConnection accept error\n");
         exit(EXIT_FAILURE);
     }
-
+    
     close(server_fd);
 
-    
     return 0;
 }
 
@@ -152,8 +139,6 @@ void *process_connection(void *args)
         exit(EXIT_FAILURE);
     }
 
-    // sshdServer.sin_addr.s_addr = inet_addr(sshdIPAddress);
-    // sshdServer.sin_addr.s_addr = inet_addr(ssh_ip);
     sshdServer.sin_addr.s_addr = ((struct in_addr*) (host->h_addr))->s_addr;
     sshdServer.sin_family = AF_INET;
     sshdServer.sin_port = htons(ssh_port);
@@ -166,30 +151,6 @@ void *process_connection(void *args)
         free(args);
         exit(EXIT_FAILURE);
     }
-
-
-    // unsigned char  iv_server[AES_BLOCK_SIZE];
-    // if(!RAND_bytes(iv_server, AES_BLOCK_SIZE))
-    // {
-    //     fprintf(stderr, "Cannot create random bytes for initializing the iv.\n");
-    //     close(client_socket);
-    //     exit(EXIT_FAILURE);
-    // }
-
-
-    // // SENDING THE IV_SERVER TO THE PROXY-SERVER
-    // // source to learn: https://vcansimplify.wordpress.com/2013/03/14/c-socket-tutorial-echo-server/
-    // if (write(client_socket, iv_server, AES_BLOCK_SIZE) <= 0) {
-    //     fprintf(stderr, "Cannot send the IV to the proxy-client side.\n");
-    //     close(client_socket);
-    //     exit(EXIT_FAILURE);
-    // }
-
-
-    // // initiating the encryption state for server
-    // struct ctr_state enc_state_server;
-    // init_ctr(&enc_state_server, iv_server);
-
 
     // RECEIVING THE IV_CLIENT
     unsigned char  IV[AES_BLOCK_SIZE];
@@ -218,11 +179,10 @@ void *process_connection(void *args)
     pthread_t clientToSshd_thread;
     if( pthread_create( & clientToSshd_thread , NULL , 
         clientToSshd , (void*) relay_data) < 0) {
-                printf("server:: Error::  creating clientToSshd_thread failed.\n");
-                fflush(stdout);
+                fprintf(stderr, "Creating clientToSshd_thread failed.\n");
                 close(client_socket);
                 free(relay_data);
-                return 0;
+                exit(EXIT_FAILURE);
     }
 
 
