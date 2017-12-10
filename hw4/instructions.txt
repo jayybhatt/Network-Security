@@ -1,0 +1,8 @@
+Dependencies:
+	-	Pip package manager
+	-	Python 2.7.x
+	-	Scapy 2.3.3
+
+Install command for Ubuntu 16.04:
+	-	sudo apt install python-pip
+	-	pip install scapy

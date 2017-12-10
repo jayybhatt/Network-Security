@@ -5,10 +5,12 @@ from collections import deque
 
 packet_q = deque(maxlen=10)
 
-
+"""
+Reference for parsing packets using scapy
+	-	https://scapy.readthedocs.io/en/latest/usage.html
+"""
 def pkt_callback(pkt):
-    if pkt.haslayer(IP) and pkt.haslayer(UDP) and pkt.haslayer(
-            DNS) and pkt.haslayer(DNSRR):
+    if pkt.haslayer(DNS) and pkt.haslayer(DNSRR) and pkt.haslayer(DNSQR):
         if len(packet_q) > 0:
             for op in packet_q:
                 if op[IP].dst == pkt[IP].dst and\
@@ -18,7 +20,7 @@ def pkt_callback(pkt):
                 op[DNS].id == pkt[DNS].id and\
                 op[DNS].qd.qname == pkt[DNS].qd.qname and\
                 op[IP].payload != pkt[IP].payload:
-                    print "DNS poisoning attempt detected"
+                    print "\nDNS poisoning attempt detected"
                     print "TXID %s Request URL %s" % (
                         op[DNS].id, op[DNS].qd.qname.rstrip('.'))
                     print "Answer1 [%s]" % op[DNSRR].rdata
@@ -26,6 +28,10 @@ def pkt_callback(pkt):
         packet_q.append(pkt)
 
 
+"""
+reference for parsing CLI using argparse
+    -   https://pymotw.com/2/argparse/
+"""
 def arg_parser():
     parser = argparse.ArgumentParser(
         add_help=False,
