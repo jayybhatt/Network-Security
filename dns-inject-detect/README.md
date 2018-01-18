@@ -1,9 +1,4 @@
-Report
-
-
-
-Name - Jay Bhatt 
-SBU ID - 111491357
+## Report
 
 1. Commands to execute:
 
