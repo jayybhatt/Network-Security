@@ -1,6 +1,6 @@
-## Report
+## DNS Inject and Detect
 
-1. Commands to execute:
+### 1. Commands to execute:
 
 -	dnsinject
 	-
@@ -56,7 +56,7 @@
 	from the provided hw4.pcap Capture file.
 	
 
-2. Decription of programs:
+### 2. Decription of programs:
 
 -	dnsinject
 	-	This code sniff the network in promiscuous mode, on the specified interface. [default if not specified]
@@ -143,25 +143,25 @@
 			Answer2 [ec2-107-22-178-157.compute-1.amazonaws.com.]
 
 
-3.	Test Environment for both the codes
-	-	Linux 4.10.0-42-generic x86_64
-	-	Distributor ID:	Ubuntu
+### 3. Test Environment for both the codes
+-	Linux 4.10.0-42-generic x86_64
+-	Distributor ID:	Ubuntu
 		Description:	Ubuntu 16.04.3 LTS
 		Release:	16.04
 		Codename:	xenial
 
-	- 	Python 2.7.12 (default, Nov 20 2017, 18:23:56) 
+- 	Python 2.7.12 (default, Nov 20 2017, 18:23:56) 
 		[GCC 5.4.0 20160609] on linux2
 
 
 
-4.	Issues
-	-	BPF filter does not work with scapy in the offline mode.
+### 4. Issues
+-	BPF filter does not work with scapy in the offline mode.
 
 
-5.	References
-	-	https://pymotw.com/2/argparse/
-	-	https://scapy.readthedocs.io/en/latest/usage.html
+### 5. References
+-	https://pymotw.com/2/argparse/
+-	https://scapy.readthedocs.io/en/latest/usage.html
 
 
 
