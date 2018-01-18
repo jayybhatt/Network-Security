@@ -3,8 +3,10 @@
 1. Commands to execute:
 
 -	dnsinject
-	-	dnsinject [-i interface] [-h hostnames] expression
-
+	-
+	```
+	dnsinject [-i interface] [-h hostnames] expression
+	
 		-i  Listen on network device <interface> (e.g., eth0). If not specified,
 			dnsinject should select a default interface to listen on. The same
 			interface should be used for packet injection.
@@ -16,9 +18,13 @@
 		<expression> is a BPF filter that specifies a subset of the traffic to be
 		monitored. This option is useful for targeting a single or a set of particular
 		victims.
+	```
 
 	Example
-	-	dnsinject.py -h hostnames.txt udp port 53
+	
+	```
+	dnsinject.py -h hostnames.txt udp port 53
+	```
 	
 	This command is used to run the dnsinject python script on all the domain names 
 	mentioned in the hostnames.txt file and with a bpf filter on the packets, to
@@ -26,7 +32,9 @@
 	[code description below]
 
 -	dnsdetect
-	-	dnsdetect [-i interface] [-r tracefile] expression
+	-
+	```
+	dnsdetect [-i interface] [-r tracefile] expression
 
 	-i  Listen on network device <interface> (e.g., eth0). If not specified,
 		the program should select a default interface to listen on.
@@ -35,9 +43,13 @@
 		DNS poisoning attacks in existing network traces.
 
 	<expression> same as in dnsinject.
+	```
 
 	Example
-	-	dnsdetect.py -r hw4.pcap
+	
+	```
+	dnsdetect.py -r hw4.pcap
+	```
 
 	This command will start the python script to detect the DNS poisoning attempts, such as
 	the one's made by dnsinject.py. In this case, the script will be reading in offline mode
