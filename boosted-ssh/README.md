@@ -74,9 +74,12 @@ Clients can then connect to the SSH server using the following command:
 
 This will result in a data flow similar to the following:
 
+```
 ssh <--stdin/stdout--> pbproxy-c <--socket 1--> pbproxy-s <--socket 2--> sshd
-\______________________________/                \___________________________/
+
+|______________________________|               |_____________________________|
              client                                        server           
+```
 
 To test the setup, a similar data flow can be achieved using netcat instead
 of pbproxy, by first running it on the same server as sshd as follows:
